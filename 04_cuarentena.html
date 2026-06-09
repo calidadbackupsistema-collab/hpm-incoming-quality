@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HPM · Control de Cuarentena</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#eef4ee;--s1:#ffffff;--s2:#f0f7f0;--s3:#e3efe3;
+  --bd:#c8ddc8;--bd2:#a8c8a8;
+  --t1:#1a2e1a;--t2:#4a6b4a;--t3:#7a9c7a;
+  --topbar:#1b4332;
+  --blue:#1565c0;--bd-blue:#90caf9;--bg-blue:rgba(21,101,192,.09);
+  --green:#2e7d32;--bd-green:#a5d6a7;--bg-green:rgba(46,125,50,.09);
+  --amber:#e65100;--bd-amber:#ffcc80;--bg-amber:rgba(230,81,0,.09);
+  --red:#c62828;--bd-red:#ef9a9a;--bg-red:rgba(198,40,40,.09);
+  --purple:#6a1b9a;--bd-purple:#ce93d8;--bg-purple:rgba(106,27,154,.09);
+  --teal:#00695c;--bd-teal:#80cbc4;--bg-teal:rgba(0,105,92,.09);
+  --shadow:0 2px 8px rgba(0,60,0,.10);--r:8px;--rl:12px
+}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--t1);min-height:100vh;font-size:14px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.topbar{background:var(--topbar);border-bottom:3px solid #2d6a4f;height:56px;display:flex;align-items:center;padding:0 22px;gap:14px;position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.logo{width:32px;height:32px;background:#40916c;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;border:1px solid #52b788}
+.topbar-title{font-size:15px;font-weight:600;color:#d8f3dc}
+.topbar-sub{font-size:12px;color:#74c69d}.sp{flex:1}
+.topbar-clock{font-size:11px;color:#74c69d;font-family:'IBM Plex Mono',monospace}
+.lang-btn{display:flex;align-items:center;border-radius:6px;overflow:hidden;border:1px solid #40916c}
+.lang-opt{padding:5px 10px;font-size:11px;font-weight:600;background:transparent;color:#74c69d;border:none;cursor:pointer;transition:.15s;font-family:'IBM Plex Sans',sans-serif}
+.lang-opt.on{background:#40916c;color:#fff}
+.lang-opt:hover:not(.on){background:rgba(255,255,255,.1);color:#d8f3dc}
+.nav{background:#fff;border-bottom:1px solid var(--bd);padding:0 22px;display:flex;gap:2px;box-shadow:var(--shadow)}
+.nav a{display:inline-flex;align-items:center;gap:6px;padding:11px 15px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-bottom:2px solid transparent;transition:.15s;position:relative;top:1px}
+.nav a:hover{color:var(--t1)}.nav a.active{color:var(--green);border-bottom-color:var(--green)}
+.nav-badge{background:#fde8e8;color:var(--red);border-radius:10px;font-size:10px;padding:1px 6px;font-family:'IBM Plex Mono',monospace}
+.nav-badge.blue{background:#e3f2fd;color:var(--blue)}.nav-badge.amber{background:#fff3e0;color:var(--amber)}
+.wrap{padding:22px;max-width:1440px;margin:0 auto}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--s1);border:1px solid var(--bd);border-radius:var(--rl);padding:13px 15px;position:relative;overflow:hidden;box-shadow:var(--shadow);transition:.2s}
+.kpi:hover{transform:translateY(-1px)}
+.kpi::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:var(--kc,var(--green))}
+.kpi-lbl{font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--t3);margin-bottom:6px}
+.kpi-val{font-size:24px;font-weight:300;font-family:'IBM Plex Mono',monospace;color:var(--t1)}
+.kpi-sub{font-size:10px;color:var(--t3);margin-top:3px}
+.two-col{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:18px}
+.sec{background:var(--s1);border:1px solid var(--bd);border-radius:var(--rl);margin-bottom:18px;overflow:hidden;box-shadow:var(--shadow)}
+.sec-hdr{padding:13px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;background:var(--s2);flex-wrap:wrap}
+.sec-title{font-size:13px;font-weight:600}.sec-sub{font-size:11px;color:var(--t3)}.sec-sp{flex:1}
+.sec-body{padding:20px}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:14px}
+.fg-full{grid-column:1/-1}
+.flbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin-bottom:4px;display:block}
+.finp,.fsel,.ftxt{background:var(--s2);border:1px solid var(--bd2);border-radius:var(--r);color:var(--t1);padding:9px 11px;font-size:13px;font-family:'IBM Plex Sans',sans-serif;width:100%;transition:.15s}
+.finp:focus,.fsel:focus,.ftxt:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 2px rgba(46,125,50,.12)}
+.fsel option{background:var(--s2)}.finp::placeholder,.ftxt::placeholder{color:var(--t3)}
+.ftxt{resize:vertical;min-height:70px}
+.photo-area{border:1.5px dashed var(--bd2);border-radius:var(--r);padding:16px;text-align:center;cursor:pointer;transition:.2s;position:relative}
+.photo-area:hover{border-color:var(--green)}.photo-area input{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0}
+.photo-area img{max-height:140px;max-width:100%;object-fit:contain;border-radius:6px;margin-top:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:var(--r);font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--bd2);background:var(--s2);color:var(--t1);transition:.15s;font-family:'IBM Plex Sans',sans-serif}
+.btn:hover{background:var(--s3)}
+.btn-amber{background:#fff3e0;border-color:var(--amber);color:var(--amber)}.btn-amber:hover{background:#ffe0b2}
+.btn-sm{padding:5px 10px;font-size:12px}.btn-danger{background:#fde8e8;border-color:var(--bd-red);color:var(--red)}
+.banner{padding:12px 16px;border-radius:var(--r);border:1px solid;margin-bottom:16px;font-size:12px;display:flex;align-items:flex-start;gap:10px;line-height:1.6}
+.banner-amber{background:#fff3e0;border-color:var(--amber);color:var(--amber)}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);padding:9px 12px;border-bottom:2px solid var(--bd);text-align:left;white-space:nowrap;background:var(--s2)}
+td{padding:10px 12px;font-size:13px;color:var(--t1);border-bottom:1px solid var(--bd);vertical-align:middle}
+tr:last-child td{border-bottom:none}tr:hover td{background:var(--s2)}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap}
+.b-quar{background:#fff3e0;color:var(--amber);border:1px solid var(--bd-amber)}
+.b-venc{background:#fde8e8;color:var(--red);border:1px solid var(--bd-red)}
+.b-scrap{background:#fde8e8;color:var(--red);border:1px solid var(--bd-red)}
+.b-retorno{background:var(--bg-purple);color:var(--purple);border:1px solid var(--bd-purple)}
+.b-desv{background:var(--bg-teal);color:var(--teal);border:1px solid var(--bd-teal)}
+.b-ok{background:var(--bg-green);color:var(--green);border:1px solid var(--bd-green)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.b-pulse{animation:pulse 1.2s infinite}
+.days-chip{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-family:'IBM Plex Mono',monospace;font-weight:600}
+.days-ok{background:var(--bg-green);color:var(--green)}.days-warn{background:#fff3e0;color:var(--amber)}.days-danger{background:#fde8e8;color:var(--red)}
+.prog-bar{height:5px;border-radius:3px;background:var(--s3);overflow:hidden;margin-top:3px}
+.prog-fill{height:100%;border-radius:3px}
+.prog-green{background:var(--green)}.prog-amber{background:var(--amber)}.prog-red{background:var(--red)}
+.filter-tabs{display:flex;gap:0;border-bottom:1px solid var(--bd);padding:0 20px}
+.ftab{padding:10px 15px;font-size:12px;font-weight:500;color:var(--t2);border-bottom:2px solid transparent;cursor:pointer;transition:.15s;background:none;border-top:none;border-left:none;border-right:none;position:relative;top:1px;font-family:'IBM Plex Sans',sans-serif}
+.ftab:hover{color:var(--t1)}.ftab.on{color:var(--green);border-bottom-color:var(--green)}
+.thumb{width:34px;height:34px;border-radius:4px;object-fit:cover;cursor:pointer;border:1px solid var(--bd)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
+.overlay.on{display:flex}
+.modal{background:var(--s1);border:1px solid var(--bd2);border-radius:var(--rl);width:100%;max-width:520px;max-height:92vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.22)}
+.modal-hdr{padding:16px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;background:var(--s2)}
+.modal-hdr span{font-size:14px;font-weight:600;flex:1}
+.modal-hdr button{background:none;border:none;color:var(--t3);font-size:18px;cursor:pointer;border-radius:4px;padding:2px 6px}
+.modal-hdr button:hover{background:var(--s3)}
+.modal-body{padding:22px}
+.modal-footer{padding:16px 22px;border-top:1px solid var(--bd);display:flex;justify-content:flex-end;gap:10px}
+.disp-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.disp-card{border:2px solid var(--bd);border-radius:var(--rl);padding:16px;text-align:center;cursor:pointer;transition:.2s}
+.disp-card:hover{border-color:var(--bd2);transform:scale(1.02)}
+.disp-card.sel-scrap{border-color:var(--red);background:#fde8e8}
+.disp-card.sel-retorno{border-color:var(--purple);background:var(--bg-purple)}
+.disp-card.sel-desv{border-color:var(--teal);background:var(--bg-teal)}
+.disp-card.sel-ok{border-color:var(--green);background:var(--bg-green)}
+.disp-icon{font-size:24px;margin-bottom:5px}
+.disp-label{font-size:13px;font-weight:600}.disp-sub{font-size:11px;color:var(--t3);margin-top:2px}
+.info-row{background:var(--s2);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;font-size:12px;line-height:1.6}
+.qr-panel{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--rl)}
+.qr-lbl{font-size:11px;font-weight:600;color:var(--t2);text-align:center}
+.empty{padding:36px;text-align:center;color:var(--t3);font-size:13px}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--bd);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sync-bar{font-size:11px;color:var(--t3);padding:6px 20px;background:var(--s2);border-top:1px solid var(--bd);display:flex;align-items:center;gap:8px}
+@media(max-width:900px){.two-col{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(2,1fr)}.disp-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">HPM</div>
+  <div class="topbar-title" data-i18n="page_title">Control de Cuarentena · 검역 관리</div>
+  <div class="topbar-sub">· Quarantine &amp; Disposition</div>
+  <div class="sp"></div>
+  <div class="topbar-clock" id="clock"></div>
+  <div class="lang-btn">
+    <button class="lang-opt on" id="lang-es" onclick="setLang('es')">ES</button>
+    <button class="lang-opt" id="lang-ko" onclick="setLang('ko')">한국어</button>
+  </div>
+</div>
+<div class="nav">
+  <a href="01_dashboard.html" data-i18n="nav_dash">📊 Dashboard</a>
+  <a href="02_ncr.html" data-i18n="nav_ncr">🔴 NCR <span class="nav-badge" id="nb-ncr">0</span></a>
+  <a href="03_inspeccion.html" data-i18n="nav_insp">✅ Inspección <span class="nav-badge blue" id="nb-insp">0</span></a>
+  <a href="04_cuarentena.html" class="active" data-i18n="nav_quar">🔶 Cuarentena <span class="nav-badge amber" id="nb-quar">0</span></a>
+</div>
+
+<div class="wrap">
+
+<div class="banner banner-amber">
+  <span style="font-size:18px">⏱</span>
+  <div data-i18n="rules_text">
+    <strong>Reglas de tiempo · 시간 규정</strong><br>
+    📋 <strong>Disposición:</strong> decidir en máx. <strong>3 días hábiles</strong> desde ingreso · 처분: 3영업일 이내<br>
+    🚚 <strong>Retiro:</strong> sacar material en <strong>5 días calendario</strong> desde la disposición · 반출: 처분 후 5일
+  </div>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi" style="--kc:var(--amber)">
+    <div class="kpi-lbl" data-i18n="kpi_active">En Cuarentena · 검역중</div>
+    <div class="kpi-val" id="k-active">—</div>
+    <div class="kpi-sub" data-i18n="kpi_active_sub">sin disposición</div>
+  </div>
+  <div class="kpi" style="--kc:var(--red)">
+    <div class="kpi-lbl" data-i18n="kpi_exp">Vencidas · 기한초과</div>
+    <div class="kpi-val" id="k-expired">—</div>
+    <div class="kpi-sub" data-i18n="kpi_exp_sub">≥3 días sin decidir</div>
+  </div>
+  <div class="kpi" style="--kc:var(--red)">
+    <div class="kpi-lbl" data-i18n="kpi_scrap">Scrap · 폐기</div>
+    <div class="kpi-val" id="k-scrap">—</div>
+    <div class="kpi-sub" data-i18n="kpi_scrap_sub">disposición scrap</div>
+  </div>
+  <div class="kpi" style="--kc:var(--purple)">
+    <div class="kpi-lbl" data-i18n="kpi_ret">Retorno · 반품</div>
+    <div class="kpi-val" id="k-retorno">—</div>
+    <div class="kpi-sub" data-i18n="kpi_ret_sub">devolver proveedor</div>
+  </div>
+  <div class="kpi" style="--kc:var(--teal)">
+    <div class="kpi-lbl" data-i18n="kpi_desv">Desviación · 일탈</div>
+    <div class="kpi-val" id="k-desv">—</div>
+    <div class="kpi-sub" data-i18n="kpi_desv_sub">uso condicionado</div>
+  </div>
+  <div class="kpi" style="--kc:var(--green)">
+    <div class="kpi-lbl" data-i18n="kpi_ok">OK · 합격</div>
+    <div class="kpi-val" id="k-ok">—</div>
+    <div class="kpi-sub" data-i18n="kpi_ok_sub">liberados</div>
+  </div>
+</div>
+
+<div class="two-col">
+<div class="sec">
+  <div class="sec-hdr"><div class="sec-title" data-i18n="form_title">🔶 Ingresar a Cuarentena · 검역 등록</div></div>
+  <div class="sec-body">
+    <div class="form-grid">
+      <div>
+        <label class="flbl" data-i18n="lbl_cliente">Cliente · 고객사</label>
+        <select class="fsel" id="q-customer" onchange="updateParts()"><option value="" data-i18n="sel_cliente">— Seleccionar —</option></select>
+      </div>
+      <div>
+        <label class="flbl" data-i18n="lbl_parte">No. Parte · 부품번호</label>
+        <select class="fsel" id="q-part"><option data-i18n="sel_parte">— Seleccione cliente primero —</option></select>
+      </div>
+      <div>
+        <label class="flbl" data-i18n="lbl_qty">Cantidad · 수량</label>
+        <input class="finp" type="number" id="q-qty" placeholder="0" min="0">
+      </div>
+      <div>
+        <label class="flbl" data-i18n="lbl_lote">No. Lote · 로트번호</label>
+        <input class="finp" type="text" id="q-lot" placeholder="Ej: 2026312">
+      </div>
+      <div>
+        <label class="flbl" data-i18n="lbl_resp">Responsable · 담당자</label>
+        <input class="finp" type="text" id="q-resp" data-i18n-ph="ph_resp" placeholder="Inspector / Operador">
+      </div>
+      <div>
+        <label class="flbl" data-i18n="lbl_ncr">NCR Relacionado</label>
+        <input class="finp" type="text" id="q-ncr" placeholder="NCR-XXXX (opcional)">
+      </div>
+      <div class="fg-full">
+        <label class="flbl" data-i18n="lbl_motivo">Motivo de Cuarentena · 검역 사유</label>
+        <textarea class="ftxt" id="q-condition" data-i18n-ph="ph_motivo" placeholder="Describe el motivo..."></textarea>
+      </div>
+      <div class="fg-full">
+        <label class="flbl" data-i18n="lbl_foto">Foto de Referencia · 참조 사진</label>
+        <div class="photo-area">
+          <input type="file" accept="image/*" onchange="previewPhoto(this)">
+          <div id="q-photo-lbl" style="color:var(--t3);font-size:12px" data-i18n="lbl_foto_click">📷 Clic para adjuntar foto</div>
+          <img id="q-photo-prev" style="display:none">
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-amber" id="btn-save" onclick="saveQuar()">🔶 <span data-i18n="btn_save">Ingresar a Cuarentena</span></button>
+      <button class="btn" onclick="resetForm()" data-i18n="btn_clear">Limpiar</button>
+    </div>
+  </div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:14px">
+  <div class="sec" style="flex:1">
+    <div class="sec-hdr"><div class="sec-title" data-i18n="stats_title">Estado Actual · 현재 현황</div></div>
+    <div class="sec-body" id="stats-panel"><div class="empty" data-i18n="no_data">Sin registros</div></div>
+  </div>
+  <div class="sec">
+    <div class="sec-hdr"><div class="sec-title" data-i18n="qr_title">🔗 Acceso QR · QR 접근</div></div>
+    <div class="sec-body" style="padding:12px">
+      <div class="qr-panel"><div id="qr-quar"></div><div class="qr-lbl" data-i18n="qr_lbl">Cuarentena — escanea para registrar</div></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="sec">
+  <div class="filter-tabs">
+    <button class="ftab on" id="ft-all" onclick="setFilter('all')" data-i18n="filter_all">Todos</button>
+    <button class="ftab" id="ft-active" onclick="setFilter('active')" data-i18n="filter_active">🔶 En cuarentena</button>
+    <button class="ftab" id="ft-expired" onclick="setFilter('expired')" data-i18n="filter_exp">⚠️ Vencidos</button>
+    <button class="ftab" id="ft-disposed" onclick="setFilter('disposed')" data-i18n="filter_disp">✅ Con disposición</button>
+  </div>
+  <div class="sec-hdr" style="border-top:none">
+    <div class="sec-title" data-i18n="table_title">Registro de Cuarentena · 검역 이력</div>
+    <div class="sec-sp"></div>
+    <div style="font-size:11px;color:var(--t3);display:flex;gap:10px;flex-wrap:wrap">
+      <span><span style="color:var(--amber)">●</span> <span data-i18n="leg_pend">Pendiente</span></span>
+      <span><span style="color:var(--red)">●</span> <span data-i18n="leg_venc">Vencido</span></span>
+      <span><span style="color:var(--red)">●</span> <span data-i18n="leg_scrap">Scrap</span></span>
+      <span><span style="color:var(--purple)">●</span> <span data-i18n="leg_ret">Retorno</span></span>
+      <span><span style="color:var(--teal)">●</span> <span data-i18n="leg_desv">Desviación</span></span>
+      <span><span style="color:var(--green)">●</span> OK</span>
+    </div>
+  </div>
+  <div class="sec-body">
+    <div id="tbl-loading" style="padding:20px;text-align:center;color:var(--t3)"><span class="spinner"></span><span data-i18n="loading">Cargando...</span></div>
+    <div class="tbl-wrap" id="tbl-wrap" style="display:none">
+      <table>
+        <thead><tr>
+          <th>#</th><th data-i18n="th_ingreso">Ingreso</th><th data-i18n="lbl_cliente">Cliente</th>
+          <th data-i18n="lbl_parte">No. Parte</th><th>Nombre</th><th data-i18n="lbl_lote">Lote</th>
+          <th data-i18n="lbl_qty">Qty</th><th data-i18n="th_dias">Días Háb.</th>
+          <th data-i18n="th_timer">Temporizador</th><th data-i18n="th_disp">Disposición</th>
+          <th data-i18n="lbl_resp">Resp.</th><th>Foto</th><th>Acc.</th>
+        </tr></thead>
+        <tbody id="quar-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- wrap -->
+<div class="sync-bar"><span class="spinner" id="syncSpinner" style="display:none"></span><span id="syncMsg">⬤ Conectando...</span></div>
+
+<!-- DISPOSITION MODAL -->
+<div class="overlay" id="dispOverlay">
+  <div class="modal">
+    <div class="modal-hdr"><span data-i18n="disp_title">Disposición de Material · 자재 처분</span><button onclick="closeDisp()">✕</button></div>
+    <div class="modal-body">
+      <div class="info-row" id="disp-info"></div>
+      <p style="font-size:12px;color:var(--t2);margin-bottom:14px;line-height:1.6" data-i18n="disp_inst">Seleccione disposición. El material debe salir en 5 días calendario tras la decisión.</p>
+      <div class="disp-grid">
+        <div class="disp-card" id="dc-scrap" onclick="selectDisp('Scrap')">
+          <div class="disp-icon">🗑️</div>
+          <div class="disp-label" style="color:var(--red)" data-i18n="disp_scrap">Scrap</div>
+          <div class="disp-sub" data-i18n="disp_scrap_sub">Material de desecho · 폐기</div>
+        </div>
+        <div class="disp-card" id="dc-retorno" onclick="selectDisp('Retorno')">
+          <div class="disp-icon">↩️</div>
+          <div class="disp-label" style="color:var(--purple)" data-i18n="disp_ret">Retorno</div>
+          <div class="disp-sub" data-i18n="disp_ret_sub">Devolver proveedor · 반품</div>
+        </div>
+        <div class="disp-card" id="dc-desv" onclick="selectDisp('Desviación')">
+          <div class="disp-icon">📋</div>
+          <div class="disp-label" style="color:var(--teal)" data-i18n="disp_desv">Desviación</div>
+          <div class="disp-sub" data-i18n="disp_desv_sub">Uso condicionado · 일탈</div>
+        </div>
+        <div class="disp-card" id="dc-ok" onclick="selectDisp('OK')">
+          <div class="disp-icon">✅</div>
+          <div class="disp-label" style="color:var(--green)" data-i18n="disp_ok">OK / Liberar</div>
+          <div class="disp-sub" data-i18n="disp_ok_sub">Material aceptado · 합격</div>
+        </div>
+      </div>
+      <div>
+        <label class="flbl" style="margin-bottom:6px" data-i18n="disp_notes_lbl">Notas (opcional)</label>
+        <textarea class="ftxt" id="disp-notes" data-i18n-ph="ph_notes" placeholder="Comentarios sobre la decisión..." style="min-height:60px"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeDisp()" data-i18n="btn_cancel">Cancelar</button>
+      <button class="btn btn-amber" onclick="confirmDisp()" id="disp-confirm-btn" style="opacity:.4" disabled data-i18n="btn_confirm">Confirmar Disposición</button>
+    </div>
+  </div>
+</div>
+
+<!-- PHOTO MODAL -->
+<div class="overlay" id="photoOverlay" onclick="this.classList.remove('on')">
+  <div class="modal" style="max-width:500px" onclick="event.stopPropagation()">
+    <div class="modal-hdr"><span data-i18n="photo_title">Foto de condición</span><button onclick="document.getElementById('photoOverlay').classList.remove('on')">✕</button></div>
+    <div class="modal-body"><img id="photoImg" style="width:100%;border-radius:8px"></div>
+  </div>
+</div>
+
+<script>
+const BOM_DATA={"MCM":[{"part":"SZ441Z7301","name":"DUST COVER.MODEL 3[FRT]"},{"part":"SZ441Z7201","name":"DUST COVER.MODEL 3[RR]"},{"part":"SZ437A2201","name":"MOUNTING ASS'Y.D2UX"},{"part":"SZ437D2201","name":"MOUNTING ASS'Y.D2-2"},{"part":"SZ444A1001Z1","name":"INSULATOR ASS'Y.MQ4A[R]"},{"part":"SZ444A0601Z1","name":"INSULATOR ASS'Y.ON[R]"},{"part":"SZ444A9701Z1","name":"INSULATOR & B/RUBBER.LQ2"},{"part":"SZ444A4301Z1","name":"INSULATOR & B/RUBBER.NX4"},{"part":"SZ444B4301Z1","name":"INSULATOR & B/RUBBER.NX5"},{"part":"SZ444A7502Z1","name":"INSULATOR & B/RUBBER.MVA"},{"part":"SZ444D5001Z1","name":"INSULATOR & B/RUBBER.NEA"},{"part":"SZ444B0102Z1","name":"INSULATOR & B/RUBBER.SVM e-AWD"},{"part":"SZ444C5706Z1","name":"INSULATOR & B/RUBBER.SVM"},{"part":"SZ444B4601Z1","name":"INSULATOR & B/RUBBER.CL4M,R"},{"part":"SZ444D5701Z1","name":"INSULATOR & B/RUBBER.CL4M[23MY]"},{"part":"SZ442A9801","name":"B/RUBBER ASS'Y.BL7M,R"},{"part":"SZ442A9602","name":"B/RUBBER ASS'Y.BL7M,F"},{"part":"SZ442B6501","name":"B/RUBBER ASS'Y.S650 FORD"},{"part":"SZ441B9201","name":"RR DUST COVER CE1"},{"part":"SZ441B9901","name":"Dust Cover Frt"},{"part":"SZ441B9501","name":"DUST COVER.S650 FORD[F]"},{"part":"SZ441C8701","name":"DUST COVER.CN7[F]"},{"part":"SZ441B0101","name":"DUST COVER.NE1[F]"},{"part":"SZ441A0301","name":"DUST COVER.(COMMON)[EV,R]"},{"part":"SZ441A0801","name":"DUST COVER.YB[R]"},{"part":"SZ440C7402","name":"B/RUBBER.NX4[F]"},{"part":"SZ440B9502","name":"B/RUBBER.S650 FORD[F]"},{"part":"SZ440D8702","name":"B/RUBBER.CN7[F]"},{"part":"SZ440D9702","name":"B/RUBBER.JS N[F]"},{"part":"SH380A2701","name":"DUST SEAL ASS'Y.MODEL 3"},{"part":"SH380A2201","name":"DUST SEAL ASS'Y.MODEL 3"},{"part":"SH285A1401","name":"CAP.SC/HC[Mexico].PA66"},{"part":"SU385A1101","name":"CAP.D2UX[MEXICO]"},{"part":"SK485A2201","name":"CAP.ON[F].PA66"},{"part":"SH285A1201","name":"CAP.AD[R].PA66+GF15"},{"part":"SH385A3801","name":"CAP.NX4[R].PA66"},{"part":"SH385A5801","name":"CAP.NX5[R].PA66"},{"part":"SH385A0701","name":"CAP.MQ4A[R].PA66"},{"part":"SH385A0901","name":"CAP.NE1[R].PA66"},{"part":"SK485B0101","name":"CAP.NE1[F].PA66"},{"part":"SK485A9501","name":"CAP.S650 FORD[F].PA66"},{"part":"SH285A1601","name":"CAP.BL7M,R"},{"part":"SK285A1601","name":"CAP.BL7M,F"},{"part":"SH385A5601","name":"SVM e-AWD CAP RR"},{"part":"SK385B0101","name":"SVM CAP FRT"},{"part":"SH385Z0001","name":"CAP.LQ2[R].PA6"},{"part":"SH385D3701","name":"CAP.TET1[F].PA6+GF30"},{"part":"SH385D3801","name":"CAP.TET1[R].PA6+GF30"},{"part":"SK485B9901","name":"CAP.V801 FORD[F].PA6+GF30"},{"part":"SH385A0501","name":"CAP.ON[R].PA66"},{"part":"SK283A2701","name":"PACKING CAP.HCR,YB"},{"part":"SK383A0101","name":"PACKING CAP.OS"},{"part":"SK383A8701","name":"PACKING CAP.CN7[F]"},{"part":"SH325A0101","name":"STOP RUBBER.D2UX[R]"},{"part":"SS425A0101","name":"STOP RUBBER.ELCV[F]"},{"part":"SS425A0201","name":"STOP RUBBER.ELCV[R]"},{"part":"SH425A0101","name":"STOP RUBBER.BEV3 SGM[R]"},{"part":"SK425A1201","name":"STOP RUBBER.V801"},{"part":"SK325A1201","name":"STOP RUBBER.D2UX[MEX]"},{"part":"SZ342A6501","name":"REBOUND SPRING.S650[20MY]-1"},{"part":"SZ342A6502","name":"REBOUND SPRING.S650[20MY]-2"},{"part":"SZ342A6503","name":"REBOUND SPRING.S650[20MY]-3"},{"part":"SZ342A6504","name":"REBOUND SPRING.S650[20MY]-4"},{"part":"SZ342A1801","name":"REBOUND SPRING.PPVSS,R"},{"part":"SZ342A2004","name":"REBOUND SPRING.BEV3 SGM[F]-1"},{"part":"SZ342A2005","name":"REBOUND SPRING.BEV3 SGM[F]-2"},{"part":"SZ332A5101","name":"COIL SPRING.P13C NISSAN"},{"part":"SZ342D2301","name":"REBOUND SPRING.D2-2"},{"part":"SK435A9501","name":"ORIFICE PISTON.S650"},{"part":"SK435A9502","name":"ORIFICE PISTON.D2UX"},{"part":"SZ405D2201","name":"REBOUND BUMPER.D2-2[R]"},{"part":"SZ929A1101","name":"SPACER.TET1PP"},{"part":"SZ929A3801","name":"SPACER.TET1.PA66+GF30"},{"part":"SZ460C3301","name":"UPR SPRING PAD.TEY1"},{"part":"SZ460C3401","name":"LWR SPRING PAD.TEY1"},{"part":"SZ460A0701","name":"LWR SPRING PAD.MQ4A"},{"part":"SZ460A0801","name":"LWR SPRING PAD.NX4A"},{"part":"SZ460C8801","name":"LWR SPRING PAD.CN7A"},{"part":"SZ460A0401","name":"LWR SPRING PAD.ON/TMA"},{"part":"BH9003BC00","name":"BRACKET HECU.NX4"},{"part":"BH9003FT00","name":"BRACKET HECU.CL4"},{"part":"BM331A3500","name":"RESERVOIR SUB.SU2B"},{"part":"BM33107900","name":"RESERVOIR SUB.SC"},{"part":"BM33108200","name":"RESERVOIR SUB.BR2"},{"part":"BM331A4900","name":"RESERVOIR SUB.BL7M"},{"part":"BA380A1600","name":"RESERVOIR.U759 FORD Main"},{"part":"BA380A1700","name":"RESERVOIR.U759 FORD Remote"},{"part":"BA382A3000","name":"IDB2 RESERVOIR.CL4M HEV MAIN"},{"part":"BA380A2900","name":"IDB2 RESERVOIR.CL4M HEV REMOTE"},{"part":"BA38004400","name":"RESERVOIR.MV"},{"part":"BA38104550","name":"RESERVOIR SUB.MV"},{"part":"BA38107500","name":"IDB2 RESERVOIR.NQ5A HEV"},{"part":"BA381A2500","name":"IDB2 RESERVOIR.MX5A EREV"},{"part":"BA38104800","name":"RESERVOIR SUB.MX5 HEV"},{"part":"BA38106800","name":"RESERVOIR SUB.SVM"},{"part":"BM34605700","name":"CAP ASS'Y.SC/HC[Mexico]"},{"part":"BM346A1500","name":"CAP ASS'Y.BL7M"},{"part":"BB61502800","name":"BOOT.SC/HC[Mexico].TPE"},{"part":"GP373B3500","name":"DUST CAP.CX482 FORD"},{"part":"GP373A2900","name":"DUST CAP.CX727 FORD-1"},{"part":"GP373A3000","name":"DUST CAP.CX727 FORD-2"},{"part":"GP371D5000","name":"DUST CAP ASS'Y.SU2B"},{"part":"GP371A7450","name":"DUST CAP ASS'Y.HC"},{"part":"GP371A7200","name":"DUST CAP ASS'Y.NX4"},{"part":"GE52100L00","name":"ECU COVER.TM"},{"part":"GM441N5000","name":"WORM WHEEL.NX4"},{"part":"GM441B2103","name":"WORM WHEEL.SU2B"},{"part":"GL771N4000","name":"LEVER ASS'Y.NX4"},{"part":"GL771NX000","name":"NX5A Lever Ass'y"},{"part":"GL771B3200","name":"LEVER ASS'Y.GCI"},{"part":"GL770A1200","name":"LEVER ASS'Y.HB"},{"part":"GL771BC000","name":"LEVER ASS'Y.BL7M"},{"part":"GL689BC200","name":"BUSH.BL7M"},{"part":"GM49533300","name":"HINGE BUSH.RB"},{"part":"GP255A3400","name":"NOISE DAMPER.CX727"}],"PRIMAX":[{"part":"GR27413700","name":"NX5A BELLOWS"},{"part":"GP274A5300","name":"BELLOWS.NX4A"},{"part":"GP274A4470","name":"BELLOWS.C2B2"},{"part":"GP274A3300","name":"BELLOWS.CX727"},{"part":"GP274S1900","name":"BELLOWS.SU2B"},{"part":"GP274A3400","name":"BELLOWS.BL7M"},{"part":"P857780000","name":"Bellows MQ4a TPEE"}],"KODACO":[{"part":"GP92400300","name":"Screw Bushing.TESLA"},{"part":"GR25501400","name":"Noise Damper RING.TESLA"}],"KLM":[{"part":"AS200B0400","name":"MRR35 Bracket Ass'y"},{"part":"AS200B0402","name":"MRR35 Bracket GTL"},{"part":"N00.288-14","name":"MRR35 Bracket"},{"part":"N00.356-07","name":"MRR35 Bracket"},{"part":"AS200A7800","name":"MRR35 Bracket"},{"part":"AS200A8410","name":"MRR35 Bracket CV1"},{"part":"N00.191-06","name":"FCM30 Coupler"},{"part":"AL100A8213","name":"Coupler Ass'y CVA"},{"part":"AS200B2300","name":"MRR35 Bracket LQ2"},{"part":"N00.291-00","name":"MRR35 Housing"},{"part":"N00.293-00","name":"MRR35 Radome"},{"part":"N00.295-00","name":"Cavity Plate"}],"MOBIS":[{"part":"N958563000","name":"RESERVOIR & SENSOR.NX4A"},{"part":"AA58563300","name":"RESERVOIR & SENSOR.CL4M"},{"part":"XL58571000","name":"RESERVOIR SUB.LQ2AH"},{"part":"Q558570220","name":"RSVR Cap.DN8A"},{"part":"Q558570100","name":"RSVR Cap.CN7A"},{"part":"R192114010","name":"BR2 PE STRIP LH"},{"part":"R192114020","name":"BR2 PE STRIP RH"},{"part":"BC92114010","name":"BL7M STRIP LH"},{"part":"BC92114020","name":"BL7M STRIP RH"},{"part":"R556354AA0","name":"End Cover Assy.MQ4A"}],"NYM":[{"part":"P256565000","name":"Bellows Assy.MQ4A"},{"part":"F256565000","name":"Bellows Assy.CL4M"},{"part":"Z957780000","name":"Bellows Assy.TV/TE"},{"part":"P256555500","name":"Dust Cap Assy.MQ4A"},{"part":"AT56555000","name":"Dust Cap CL4M/LHD"},{"part":"AT56555090","name":"Dust Cap CL4M/RHD"},{"part":"EV56555000","name":"Dust Cap SV1m"}],"DY AUTO":[{"part":"201014001A","name":"Rear Wiper Bracket.C223"}],"MH":[{"part":"WP160GT000","name":"Impeller Assy"},{"part":"WP160P6000","name":"Impeller Assy"}],"HPA":[{"part":"BC710A1100","name":"A/HOUSING ASSY LH.MQ4A"},{"part":"BC711A1100","name":"A/HOUSING ASSY RH.MQ4A"},{"part":"BC710A2300","name":"A/HOUSING ASSY LH.TESLA"},{"part":"BC711A2300","name":"A/HOUSING ASSY RH.TESLA"},{"part":"BC710A2100","name":"A/HOUSING ASSY LH.SPA2"},{"part":"BC711A2100","name":"A/HOUSING ASSY RH.SPA2"},{"part":"BC710A2600","name":"A/HOUSING ASSY LH.C1XX-2"},{"part":"BC711A2600","name":"A/HOUSING ASSY RH.C1XX-2"},{"part":"BC710A2500","name":"A/HOUSING ASSY LH.CYBERTRUCK"},{"part":"BC711A2500","name":"A/HOUSING ASSY RH.CYBERTRUCK"},{"part":"BC710A3500","name":"A/HOUSING ASSY LH.BT1XX"},{"part":"BC711A3500","name":"A/HOUSING ASSY RH.BT1XX"},{"part":"BC718A1101","name":"A/HOUSING COVER LH.MQ4A"},{"part":"BC719A1101","name":"A/HOUSING COVER RH.MQ4A"},{"part":"BC718A2500","name":"A/HOUSING COVER LH.CYBERTRUCK"},{"part":"BC719A2500","name":"A/HOUSING COVER RH.CYBERTRUCK"},{"part":"BC742A2500","name":"A/HOUSING GEAR BOX LH.CYBERTRUCK"},{"part":"BC743A2500","name":"A/HOUSING GEAR BOX RH.CYBERTRUCK"},{"part":"BC771A1100","name":"CARRIER MOLD ASSY.MQ4A"},{"part":"BC771A2400","name":"CARRIER MOLD ASSY.TESLA"},{"part":"BC771A2600","name":"CARRIER MOLD ASSY.C1XX-2"},{"part":"BC757A1700Z1","name":"WORM WHEEL ASSY.MQ4A"},{"part":"BC757A2500","name":"WORM WHEEL ASSY.CYBERTRUCK"},{"part":"BC750A1100","name":"WORM SHAFT ASSY.MQ4A"},{"part":"BC750A2500","name":"WORM SHAFT ASSY.CYBERTRUCK"},{"part":"GP278A3700","name":"Dust Cover"},{"part":"GP255A3100","name":"Noise Damper"},{"part":"GP255A3600","name":"LP3 Noise Damper"},{"part":"GP255A3700","name":"LP3 Noise Damper"},{"part":"GP924A1900","name":"Screw Bush"}],"WIA":[{"part":"M28378-2MAB0","name":"COOLANT RESERVOIR ASS'Y"}]};
+
+const I18N={
+  es:{
+    page_title:'Control de Cuarentena · 검역',nav_dash:'📊 Dashboard',nav_ncr:'🔴 NCR',nav_insp:'✅ Inspección',nav_quar:'🔶 Cuarentena',
+    kpi_active:'En Cuarentena',kpi_active_sub:'sin disposición',kpi_exp:'Vencidas',kpi_exp_sub:'≥3 días sin decidir',
+    kpi_scrap:'Scrap',kpi_scrap_sub:'disposición scrap',kpi_ret:'Retorno',kpi_ret_sub:'devolver proveedor',
+    kpi_desv:'Desviación',kpi_desv_sub:'uso condicionado',kpi_ok:'OK',kpi_ok_sub:'liberados',
+    rules_text:'📋 Disposición: 3 días hábiles · 🚚 Retiro: 5 días calendario',
+    form_title:'🔶 Ingresar a Cuarentena',lbl_cliente:'Cliente',sel_cliente:'— Seleccionar —',
+    lbl_parte:'No. Parte',sel_parte:'— Seleccione cliente primero —',lbl_qty:'Cantidad',lbl_lote:'No. Lote',
+    lbl_resp:'Responsable',ph_resp:'Inspector / Operador',lbl_ncr:'NCR Relacionado',
+    lbl_motivo:'Motivo de Cuarentena',ph_motivo:'Describe el motivo...',
+    lbl_foto:'Foto de Referencia',lbl_foto_click:'📷 Clic para adjuntar foto',
+    btn_save:'Ingresar a Cuarentena',btn_clear:'Limpiar',
+    stats_title:'Estado Actual',qr_title:'🔗 Acceso QR',qr_lbl:'Cuarentena — escanea para registrar',
+    filter_all:'Todos',filter_active:'🔶 En cuarentena',filter_exp:'⚠️ Vencidos',filter_disp:'✅ Con disposición',
+    table_title:'Registro de Cuarentena',
+    leg_pend:'Pendiente',leg_venc:'Vencido',leg_scrap:'Scrap',leg_ret:'Retorno',leg_desv:'Desviación',
+    th_ingreso:'Ingreso',th_dias:'Días Háb.',th_timer:'Temporizador',th_disp:'Disposición',
+    loading:'Cargando...',no_data:'Sin registros',sync_ok:'✅ Sincronizado con Firebase',
+    disp_title:'Disposición de Material',disp_inst:'Seleccione disposición. Material debe salir en 5 días calendario.',
+    disp_scrap:'Scrap',disp_scrap_sub:'Material de desecho · 폐기',
+    disp_ret:'Retorno',disp_ret_sub:'Devolver proveedor · 반품',
+    disp_desv:'Desviación',disp_desv_sub:'Uso condicionado · 일탈',
+    disp_ok:'OK / Liberar',disp_ok_sub:'Material aceptado · 합격',
+    disp_notes_lbl:'Notas (opcional)',ph_notes:'Comentarios...',
+    btn_cancel:'Cancelar',btn_confirm:'Confirmar Disposición',
+    photo_title:'Foto de condición',
+    d_para_dec:'d para decidir',vencido:'VENCIDO',sacar:'Sacar ya',
+    d_para_sacar:'d para sacar',
+    disp_pend:'⏳ Pendiente',confirm_del:'¿Eliminar registro?',
+    err_req:'Seleccione Cliente, Parte e ingrese el motivo',
+  },
+  ko:{
+    page_title:'검역 관리 · Cuarentena',nav_dash:'📊 대시보드',nav_ncr:'🔴 NCR',nav_insp:'✅ 검사',nav_quar:'🔶 검역',
+    kpi_active:'검역중',kpi_active_sub:'처분 대기중',kpi_exp:'기한초과',kpi_exp_sub:'3영업일 초과',
+    kpi_scrap:'폐기',kpi_scrap_sub:'처분: 폐기',kpi_ret:'반품',kpi_ret_sub:'공급자 반품',
+    kpi_desv:'일탈',kpi_desv_sub:'조건부 사용',kpi_ok:'합격',kpi_ok_sub:'방출',
+    rules_text:'📋 처분: 3영업일 이내 · 🚚 반출: 처분 후 5일',
+    form_title:'🔶 검역 등록',lbl_cliente:'고객사',sel_cliente:'— 선택 —',
+    lbl_parte:'부품번호',sel_parte:'— 먼저 고객사를 선택하세요 —',lbl_qty:'수량',lbl_lote:'로트번호',
+    lbl_resp:'담당자',ph_resp:'검사자 / 작업자',lbl_ncr:'NCR 연관',
+    lbl_motivo:'검역 사유',ph_motivo:'사유 기술...',
+    lbl_foto:'참조 사진',lbl_foto_click:'📷 사진 첨부',
+    btn_save:'검역 등록',btn_clear:'초기화',
+    stats_title:'현재 현황',qr_title:'🔗 QR 접근',qr_lbl:'검역 — 스캔하여 등록',
+    filter_all:'전체',filter_active:'🔶 검역중',filter_exp:'⚠️ 기한초과',filter_disp:'✅ 처분 완료',
+    table_title:'검역 이력',
+    leg_pend:'대기중',leg_venc:'기한초과',leg_scrap:'폐기',leg_ret:'반품',leg_desv:'일탈',
+    th_ingreso:'입고일',th_dias:'경과일',th_timer:'타이머',th_disp:'처분',
+    loading:'로딩중...',no_data:'기록 없음',sync_ok:'✅ Firebase 동기화 완료',
+    disp_title:'자재 처분',disp_inst:'처분을 선택하세요. 처분 후 5일 이내 반출.',
+    disp_scrap:'폐기',disp_scrap_sub:'폐기 처리',
+    disp_ret:'반품',disp_ret_sub:'공급자 반품',
+    disp_desv:'일탈',disp_desv_sub:'조건부 사용',
+    disp_ok:'합격 / 방출',disp_ok_sub:'합격 방출',
+    disp_notes_lbl:'비고 (선택)',ph_notes:'의견...',
+    btn_cancel:'취소',btn_confirm:'처분 확인',
+    photo_title:'상태 사진',
+    d_para_dec:'일 남음',vencido:'기한초과',sacar:'즉시 반출',
+    d_para_sacar:'일 남음',
+    disp_pend:'⏳ 대기중',confirm_del:'삭제하시겠습니까?',
+    err_req:'고객사, 부품번호 및 사유를 입력하세요',
+  }
+};
+let lang=localStorage.getItem('hpm_lang')||'es';
+function t(k){return(I18N[lang]||I18N.es)[k]||k}
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.getAttribute('data-i18n');if(I18N[lang][k])el.textContent=I18N[lang][k];});
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{const k=el.getAttribute('data-i18n-ph');if(I18N[lang][k])el.placeholder=I18N[lang][k];});
+}
+function setLang(l,rerender=true){
+  lang=l;localStorage.setItem('hpm_lang',l);
+  const es=document.getElementById('lang-es');const ko=document.getElementById('lang-ko');
+  if(es)es.classList.toggle('on',l==='es');
+  if(ko)ko.classList.toggle('on',l==='ko');
+  applyI18n();
+  if(rerender)renderTable();
+}
+
+// FIREBASE
+const firebaseConfig={
+  apiKey:"AIzaSyB7VvXpkjb_YcfjBSussHDLdat8tR9CHIs",
+  authDomain:"hpm-incoming-quality.firebaseapp.com",
+  projectId:"hpm-incoming-quality",
+  storageBucket:"hpm-incoming-quality.firebasestorage.app",
+  messagingSenderId:"786058966739",
+  appId:"1:786058966739:web:c9f13d1644920d97a60626"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.firestore();
+
+let _cache=[];let activeDispId=null;let selectedDisp=null;let currentFilter='all';
+
+function setSyncStatus(msg,loading=false){
+  document.getElementById('syncMsg').textContent=msg;
+  document.getElementById('syncSpinner').style.display=loading?'inline-block':'none';
+}
+function bizDays(dateStr){
+  const start=new Date(dateStr+'T00:00:00');const now=new Date();let count=0,cur=new Date(start);
+  while(cur<now){cur.setDate(cur.getDate()+1);const d=cur.getDay();if(d!==0&&d!==6)count++;}
+  return count;
+}
+function calDays(dateStr){return Math.floor((new Date()-new Date(dateStr+'T00:00:00'))/86400000)}
+function fmtDate(d){return d?new Date(d+'T00:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'2-digit'}):'—'}
+function getPartName(c,p){const f=BOM_DATA[c]?.find(x=>x.part===p);return f?f.name:''}
+function showPhoto(src){document.getElementById('photoImg').src=src;document.getElementById('photoOverlay').classList.add('on')}
+
+// POPULATE BOM
+function buildCustomerSel(){
+  const sel=document.getElementById('q-customer');
+  Object.keys(BOM_DATA).forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+}
+function updateParts(){
+  const c=document.getElementById('q-customer').value;
+  const sel=document.getElementById('q-part');
+  sel.innerHTML=`<option value="">${t('sel_parte')}</option>`;
+  if(c&&BOM_DATA[c])BOM_DATA[c].forEach(p=>{const o=document.createElement('option');o.value=p.part;o.textContent=p.part+' — '+p.name.substring(0,38);sel.appendChild(o);});
+}
+function previewPhoto(input){
+  if(input.files&&input.files[0]){
+    const r=new FileReader();
+    r.onload=e=>{
+      const img=document.getElementById('q-photo-prev');img.src=e.target.result;img.style.display='block';
+      document.getElementById('q-photo-lbl').style.display='none';
+    };r.readAsDataURL(input.files[0]);
+  }
+}
+function getPhoto(){const img=document.getElementById('q-photo-prev');return img.style.display!=='none'?img.src:null;}
+function resetForm(){
+  document.getElementById('q-customer').value='';
+  document.getElementById('q-part').innerHTML=`<option value="">${t('sel_parte')}</option>`;
+  ['q-qty','q-lot','q-resp','q-ncr','q-condition'].forEach(id=>document.getElementById(id).value='');
+  const img=document.getElementById('q-photo-prev');img.style.display='none';img.src='';
+  document.getElementById('q-photo-lbl').style.display='block';
+}
+async function saveQuar(){
+  const customer=document.getElementById('q-customer').value;
+  const partNo=document.getElementById('q-part').value;
+  const condition=document.getElementById('q-condition').value.trim();
+  if(!customer||!partNo||!condition){alert(t('err_req'));return;}
+  const btn=document.getElementById('btn-save');btn.disabled=true;
+  setSyncStatus('Guardando...',true);
+  const record={
+    date:new Date().toISOString().split('T')[0],
+    customer,partNo,partName:getPartName(customer,partNo),
+    qty:parseInt(document.getElementById('q-qty').value)||0,
+    lot:document.getElementById('q-lot').value.trim(),
+    resp:document.getElementById('q-resp').value.trim(),
+    ncrRef:document.getElementById('q-ncr').value.trim(),
+    condition,photo:getPhoto()||null,
+    disposition:null,dispositionDate:null,dispositionNotes:'',
+    createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  };
+  try{
+    await db.collection('cuarentena').add(record);
+    resetForm();setSyncStatus(t('sync_ok'));
+  }catch(e){alert('Error Firebase: '+e.message);setSyncStatus('⚠️ Error');}
+  btn.disabled=false;
+}
+
+// DISPOSITION
+function openDisp(docId){
+  activeDispId=docId;selectedDisp=null;
+  const r=_cache.find(x=>x.id===docId);const bd=bizDays(r.date);
+  document.getElementById('disp-info').innerHTML=`<strong>${r.partNo}</strong> · ${r.partName||'—'}<br><span style="color:var(--t3)">${r.customer} · ${r.lot||'—'} · ${(r.qty||0).toLocaleString()} · ${bd}d háb.</span>`;
+  document.getElementById('disp-notes').value='';
+  ['scrap','retorno','desv','ok'].forEach(k=>document.getElementById('dc-'+k).className='disp-card');
+  const btn=document.getElementById('disp-confirm-btn');btn.disabled=true;btn.style.opacity='.4';
+  document.getElementById('dispOverlay').classList.add('on');
+}
+function selectDisp(d){
+  selectedDisp=d;
+  const map={Scrap:'scrap',Retorno:'retorno','Desviación':'desv',OK:'ok'};
+  ['scrap','retorno','desv','ok'].forEach(k=>document.getElementById('dc-'+k).className='disp-card');
+  document.getElementById('dc-'+map[d]).className='disp-card sel-'+map[d];
+  const btn=document.getElementById('disp-confirm-btn');btn.disabled=false;btn.style.opacity='1';
+}
+function closeDisp(){document.getElementById('dispOverlay').classList.remove('on');activeDispId=null;selectedDisp=null;}
+async function confirmDisp(){
+  if(!selectedDisp)return;
+  try{
+    await db.collection('cuarentena').doc(activeDispId).update({
+      disposition:selectedDisp,
+      dispositionDate:new Date().toISOString().split('T')[0],
+      dispositionNotes:document.getElementById('disp-notes').value
+    });
+    setSyncStatus(t('sync_ok'));closeDisp();
+  }catch(e){alert('Error: '+e.message);}
+}
+async function deleteQuar(docId){
+  if(!confirm(t('confirm_del')))return;
+  try{await db.collection('cuarentena').doc(docId).delete();setSyncStatus(t('sync_ok'));}
+  catch(e){alert('Error: '+e.message);}
+}
+
+function setFilter(f){
+  currentFilter=f;
+  ['all','active','expired','disposed'].forEach(k=>document.getElementById('ft-'+k).classList.toggle('on',k===f));
+  renderTable();
+}
+
+function renderAll(){
+  const active=_cache.filter(r=>!r.disposition);
+  const expired=active.filter(r=>bizDays(r.date)>=3);
+  const scrap=_cache.filter(r=>r.disposition==='Scrap');
+  const retorno=_cache.filter(r=>r.disposition==='Retorno');
+  const desv=_cache.filter(r=>r.disposition==='Desviación');
+  const ok=_cache.filter(r=>r.disposition==='OK');
+  document.getElementById('k-active').textContent=active.length;
+  document.getElementById('k-expired').textContent=expired.length;
+  document.getElementById('k-scrap').textContent=scrap.length;
+  document.getElementById('k-retorno').textContent=retorno.length;
+  document.getElementById('k-desv').textContent=desv.length;
+  document.getElementById('k-ok').textContent=ok.length;
+
+  const panel=document.getElementById('stats-panel');
+  if(!_cache.length){panel.innerHTML=`<div class="empty">${t('no_data')}</div>`;}
+  else{
+    panel.innerHTML=_cache.slice(0,6).map(r=>{
+      const bd=bizDays(r.date);const isActive=!r.disposition;
+      const pct=Math.min(100,Math.round(bd/3*100));
+      const cls=bd<2?'prog-green':bd<3?'prog-amber':'prog-red';
+      return`<div style="margin-bottom:11px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px">
+          <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px">${r.partNo}</span>
+          <span class="days-chip ${bd>=3?'days-danger':bd>=2?'days-warn':'days-ok'}" style="font-size:10px">${bd}d</span>
+        </div>
+        <div class="prog-bar"><div class="prog-fill ${cls}" style="width:${pct}%"></div></div>
+        <div style="font-size:10px;color:var(--t3);margin-top:1px">${isActive?t('no_data'):r.disposition}</div>
+      </div>`;
+    }).join('');
+  }
+  renderTable();
+}
+function renderTable(){
+  let d=_cache.slice();
+  if(currentFilter==='active')d=d.filter(r=>!r.disposition);
+  else if(currentFilter==='expired')d=d.filter(r=>!r.disposition&&bizDays(r.date)>=3);
+  else if(currentFilter==='disposed')d=d.filter(r=>r.disposition);
+  d.sort((a,b)=>new Date(a.date)-new Date(b.date));
+  document.getElementById('tbl-loading').style.display='none';
+  document.getElementById('tbl-wrap').style.display='block';
+  const tb=document.getElementById('quar-tbody');
+  if(!d.length){tb.innerHTML=`<tr><td colspan="13" class="empty">${t('no_data')}</td></tr>`;return;}
+  const dispMap={'Scrap':'b-scrap','Retorno':'b-retorno','Desviación':'b-desv','OK':'b-ok'};
+  const dispLbl=(disp)=>({Scrap:t('disp_scrap'),Retorno:t('disp_ret'),Desviación:t('disp_desv'),OK:'✅ OK'}[disp]||disp);
+  tb.innerHTML=d.map(r=>{
+    const bd=bizDays(r.date);const isActive=!r.disposition;const expired=isActive&&bd>=3;
+    const dc=expired?'days-danger':bd>=2?'days-warn':'days-ok';
+    const pct=Math.min(100,Math.round(bd/3*100));
+    const pCls=bd<2?'prog-green':bd<3?'prog-amber':'prog-red';
+    let dispBadge=isActive?(expired?`<span class="badge b-venc b-pulse">⚠️ ${t('vencido')}</span>`:`<span class="badge b-quar b-pulse">${t('disp_pend')}</span>`):
+      `<span class="badge ${dispMap[r.disposition]||'b-quar'}">${dispLbl(r.disposition)}</span>`;
+    const retiro=r.dispositionDate?(calDays(r.dispositionDate)>=5?`<div style="font-size:10px;color:var(--red);margin-top:2px">⚠️ ${t('sacar')}</div>`:`<div style="font-size:10px;color:var(--t3);margin-top:2px">${5-calDays(r.dispositionDate)} ${t('d_para_sacar')}</div>`):'';
+    return`<tr style="${expired?'background:rgba(198,40,40,.03)':''}">
+      <td class="mono" style="font-size:11px;font-weight:600;color:var(--t2)">${r.id?.substring(0,8)||'—'}</td>
+      <td style="white-space:nowrap;font-size:12px">${fmtDate(r.date)}</td>
+      <td><strong>${r.customer||'—'}</strong></td>
+      <td class="mono" style="font-size:11px">${r.partNo||'—'}</td>
+      <td style="font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.partName||'—'}</td>
+      <td style="font-size:11px">${r.lot||'—'}</td>
+      <td class="mono">${(r.qty||0).toLocaleString()}</td>
+      <td><span class="days-chip ${dc}">${bd}d</span></td>
+      <td style="min-width:90px">
+        <div class="prog-bar"><div class="prog-fill ${pCls}" style="width:${pct}%"></div></div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${isActive?bd+'/3d':(r.dispositionDate||'—')}</div>
+        ${retiro}
+      </td>
+      <td>${dispBadge}</td>
+      <td style="font-size:12px">${r.resp||'—'}</td>
+      <td>${r.photo?`<img class="thumb" src="${r.photo}" onclick="showPhoto('${r.photo}')" title="Ver foto">`:'—'}</td>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${isActive?`<button class="btn btn-sm btn-amber" onclick="openDisp('${r.id}')" style="font-size:11px">${t('btn_confirm').split(' ')[0]}</button>`:''}
+          <button class="btn btn-sm btn-danger" onclick="deleteQuar('${r.id}')" title="Eliminar">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function loadData(){
+  setSyncStatus('Cargando...',true);
+  const BASE_URL='https://calidadbackupsistema-collab.github.io/hpm-incoming-quality/';
+  const qrEl=document.getElementById('qr-quar');
+  if(qrEl&&!qrEl.hasChildNodes())new QRCode(qrEl,{text:BASE_URL+'04_cuarentena.html',width:90,height:90,colorDark:'#1b4332',colorLight:'#f0f7f0'});
+
+  db.collection('cuarentena').orderBy('createdAt','desc').onSnapshot(snap=>{
+    _cache=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderAll();setSyncStatus(t('sync_ok'));
+  },e=>{setSyncStatus('⚠️ Error: '+e.message);});
+
+  db.collection('ncr').where('status','==','Abierto').onSnapshot(s=>document.getElementById('nb-ncr').textContent=s.size);
+  db.collection('inspeccion').onSnapshot(s=>document.getElementById('nb-insp').textContent=s.size);
+  db.collection('cuarentena').onSnapshot(s=>{
+    const n=s.docs.filter(d=>!d.data().disposition).length;
+    document.getElementById('nb-quar').textContent=n;
+  });
+}
+
+function tick(){document.getElementById('clock').textContent=new Date().toLocaleString('es-MX',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});}
+tick();setInterval(tick,30000);
+buildCustomerSel();
+setLang(lang, false);
+loadData();
+</script>
+</body>
+</html>
